@@ -2,7 +2,8 @@
 import * as mysql from "https://deno.land/x/mysql2@v1.0.6/mod.ts";
 import { 
   getUserByIdSql,
-  getUserByEmailSql
+  getUserByEmailSql,
+  getUsersByAccountId
 } from "./sql.ts";
 
 export class Database {
@@ -14,8 +15,9 @@ export class Database {
    */
 
   mysql: mysql.Pool;
+  rqliteUri: string;
 
-  constructor(connString: string) {
+  constructor(connString: string, rqliteUri: string) {
     const regex = /mysql:\/\/(.*)[:](.*)[@](.*)[:](.*)[/](.*)/g;
     const match = regex.exec(connString) || ['', 'root', 'root', 'localhost', '3306', 'main'];
 
@@ -29,13 +31,35 @@ export class Database {
       namedPlaceholders: true,
       dateStrings: true,
     })
+
+    this.rqliteUri = rqliteUri || 'http://localhost:4001/db';
   }
 
-  async run(sql: string, values: any) {
+  async run(sql: string, values: any, db: string, write: boolean) {
     try {
-      const [rows] = await this.mysql.execute(sql, values);
-      return rows;
+      if (db === 'rqlite') return await this.rqlite(sql, values, write);
+
+      if (db === 'mysql') {
+        const [rows] = await this.mysql.execute(sql, values);
+        return rows;
+      }
     } catch (err) {return err}
+  }
+
+  async rqlite(sql: string, values: any, write: boolean) {    
+    const uri = write ?
+      `${this.rqliteUri}/execute?timings` :
+      `${this.rqliteUri}/query?level=none&timings&associative`;
+    
+    const data = [sql, values];
+
+    const res = await fetch(uri, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify([data]),
+    });
+    const json = await res.json();
+    return json?.results?.[0]?.rows;  
   }
 
   /**
@@ -44,7 +68,8 @@ export class Database {
    * @returns The user record
    */
   async getUserById(id: number) {
-    return await this.run(getUserByIdSql, {id});
+    const { sql, db, write } = getUserByIdSql;
+    return await this.run(sql, {id}, db, write);
   }
 
   /**
@@ -53,7 +78,18 @@ export class Database {
    * @returns The user record
    */
   async getUserByEmail(email: string) {
-    return await this.run(getUserByEmailSql, {email});
+    const { sql, db, write } = getUserByEmailSql;
+    return await this.run(sql, {email}, db, write);
+  }
+
+  /**
+   * Returns the users with the given account id
+   * @param id - Account ID
+   * @returns The user records
+   */
+  async getUsersByAccountId(id: number) {
+    const { sql, db, write } = getUsersByAccountId;
+    return await this.run(sql, {id}, db, write);
   }
 
 }
