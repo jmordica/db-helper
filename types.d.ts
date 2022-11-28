@@ -8,7 +8,7 @@ export interface Req {
   /** Queue (optional) https://github.com/rqlite/rqlite/blob/master/DOC/QUEUED_WRITES.md */
   queue?: boolean;
   /** Values to be inserted into the query */
-  values?: { [param: string]: string | number };
+  values: { [param: string]: string | number };
 }
 
 export interface Res {

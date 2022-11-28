@@ -1,5 +1,5 @@
-import * as mysql from "https://deno.land/x/mysql2@v1.0.6/mod.ts";
-import { Req, Res } from "./types.ts";
+import { mysql } from "./deps.ts";
+import { Req, Res } from "./types.d.ts";
 
 export class Database {
 
@@ -30,15 +30,15 @@ export class Database {
     this.rqliteUri = rqliteUri || 'http://localhost:4001/db';
   }
 
-  async dbRes(sql: Req, values: { [param: string]: string | number }): Promise<Res> {
-    const res = await this[sql.db](sql, values);
+  async dbRes(req: Req): Promise<Res> {
+    const res = await this[req.db](req);
     return {
       req: {
-        sql: sql.sql,
-        write: sql.write,
-        db: sql.db,
-        queue: sql.queue,
-        values,
+        sql: req.sql,
+        write: req.write,
+        db: req.db,
+        queue: req.queue,
+        values: req.values,
       },
       rows: res.isArray ? res : [],
       affectedRows: res.affectedRows || 0,
@@ -48,29 +48,29 @@ export class Database {
     }
   }
 
-  async mysql(sql: Req, values: { [param: string]: string | number }) {
+  async mysql(req: Req) {
     try {
-      if (sql.write) {
+      if (req.write) {
         // Handle write queries
-        const res = await this.pool.execute(sql, values);
+        const res = await this.pool.execute(req.sql, req.values);
         return res[0];
       }
   
       // Handle read queries
-      const [rows] = await this.pool.query(sql, values);
+      const [rows] = await this.pool.query(req.sql, req.values);
       return rows
     } catch (err) {return {err: err.message}}
   }
 
-  async rqlite(sql: Req, values: { [param: string]: string | number }) {    
-    const uri = sql.write ?
+  async rqlite(req: Req) {    
+    const uri = req.write ?
       `${this.rqliteUri}/execute?timings` :
       `${this.rqliteUri}/query?level=none&timings&associative`;
     
     const props = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify([[sql.sql, values]]),
+      body: JSON.stringify([[req.sql, req.values]]),
     }
 
     try {
@@ -79,7 +79,7 @@ export class Database {
       
       const json = await res.json();
       
-      if (sql.write) {
+      if (req.write) {
         return {
           affectedRows: json.results[0]?.rows_affected,
           insertId: json.results[0]?.last_insert_id,
