@@ -2,8 +2,11 @@ import { Database } from "./mod.ts";
 
 const db = new Database('mysql://root:root@localhost:3306/main', 'http://localhost:4001/db');
 
-//const user = await db.getUserById(98);
+//const user = await db.getUserById(91118);
 
-const users = await db.getUsersByAccountId(37);
+//console.log(user);
 
-console.log(users);
+// Add user to tenant
+const res = await db.getUserById(98);
+
+console.log(res);
